@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta HTTP-EQUIV="pragma" CONTENT="no-cache">
+    <meta HTTP-EQUIV="Cache-Control" CONTENT="no-cache, must-revalidate">
+    <meta HTTP-EQUIV="expires" CONTENT="0">
+    <title>竞标管理</title>
+    <link rel="stylesheet" href="../../css/element.css">
+    <link rel="stylesheet" href="../../css/base.css">
+</head>
+<body>
+<div id="wrapper" v-cloak>
+    <div style="padding-bottom: 10px">
+            <el-breadcrumb separator-class="el-icon-arrow-right">
+                <el-breadcrumb-item @click.native="parent.changeIndex('index')">首页</el-breadcrumb-item>
+                <el-breadcrumb-item>竞标管理</el-breadcrumb-item>
+            </el-breadcrumb>
+        </div>
+
+        <div style="height: 1px; margin: 10px 0; background-color: white"></div>
+    <el-input v-model="search" style="width: 20%;" suffix-icon="el-icon-search" placeholder="请输入名称搜索"></el-input>
+    <el-button icon="el-icon-search" round="true" @click="loadTable" type="primary"  style="margin: 10px 0">查询</el-button>
+    <el-button icon="el-icon-plus" round="true" @click="bid_for" type="success" style="margin: 10px 0">新增</el-button>
+    <el-table :data="tableData" border stripe style="width: 100%">
+        <el-table-column prop="id" label="ID" width="100"> </el-table-column>
+        <el-table-column prop="orderid" label="订单编号"></el-table-column>
+        <el-table-column prop="factoryid" label="投标工厂"></el-table-column>
+        <el-table-column prop="bidprice" label="竞标价格"></el-table-column>
+        <el-table-column prop="bidstatus" label="竞标状态"></el-table-column>
+
+        <el-table-column
+          fixed="right"
+          label="操作"
+          width="200">
+        <template slot-scope="scope">
+          <el-button type="primary" icon="el-icon-edit" circle size='mini' @click="edit(scope.row)"></el-button>
+          <el-popconfirm
+              @onConfirm="del(scope.row.id)"
+              title="确定删除？">
+            <el-button size='mini' type="danger" icon="el-icon-delete" circle slot="reference" style="margin-left: 10px"></el-button>
+          </el-popconfirm>
+        </template>
+        </el-table-column>
+    </el-table>
+    <!-- 分页 -->
+    <div style="background-color: white">
+        <el-pagination
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+                :current-page="pageNum"
+                :page-sizes="[5, 10, 20, 40]"
+                :page-size="pageSize"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="total">
+        </el-pagination>
+    </div>
+
+    <el-dialog title="竞标信息" :visible.sync="dialogFormVisible" width="40%"
+               :close-on-click-modal="false">
+        <el-form :model="entity">
+            <el-form-item label="竞标价格" label-width="120px">
+                <el-input v-model="entity.bidprice" autocomplete="off" style="width: 80%"></el-input>
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="dialogFormVisible = false">取 消</el-button>
+            <el-button type="primary" @click="save">确 定</el-button>
+        </div>
+    </el-dialog>
+
+    <el-dialog title="投标" :visible.sync="bid_for_visible" width="40%" :close-on-click-modal="false">
+        <el-form :model="entity">
+            <el-form-item label="竞标订单" label-width="120px">
+                <el-select v-model="entity.orderid" autocomplete="off" placeholder="请选择" style="width: 80%">
+                    <el-option
+                            v-for="item in available_order"
+                            :key="item.id"
+                            :label="item.orderno"
+                            :value="item.orderno">
+                        <span style="float: left">{{ item.orderno }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="出价" label-width="120px">
+                <el-input
+                        v-model='entity.bidprice'
+                        oninput="value=value.replace(/[^\d]/g,'')"
+                        maxLength='9'>
+                    <template slot="append">元</template>
+                </el-input>
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="bid_for_visible = false">取 消</el-button>
+            <el-button type="primary" @click="save_bid_for">确 定</el-button>
+        </div>
+    </el-dialog>
+</div>
+
+<script src="../../js/jquery.min.js"></script>
+<script src="../../js/vue.min.js"></script>
+<script src="../../js/element.js"></script>
+<script src="../../js/tinymce/tinymce.min.js"></script>
+
+
+<script>
+
+    let urlBase = "/api/bid/";
+    new Vue({
+        el: "#wrapper",
+        data: {
+            options: [],
+            fileList: [],
+            available_order:[],
+            user: {},
+            bid_factory:{},
+            tableData: [],
+            is_super_admin:0,
+            pageNum: 1,
+            pageSize: 10,
+            total: 0,
+            dialogFormVisible: false,
+            bid_for_visible:false,
+            entity: {},
+            isCollapse: false,
+            search: '',
+        },
+        created() {
+            this.user = sessionStorage.getItem("user") ? JSON.parse(sessionStorage.getItem("user")) : {};
+            this.loadTable();
+            let role = this.user.role;
+            let flag = false;
+            for (let i = 0; i < role.length; i++) {
+                if (role[i] === 1) {
+                    flag = true;
+                    break;
+                }
+            }
+            this.is_super_admin = flag ? 1 : 0;
+        },
+        methods: {
+            fileSuccessUpload(res) {
+                this.entity.file = "http://localhost:9999/files/" + res.data;
+                this.entity.img = "http://localhost:9999/files/" + res.data;
+                console.log(res)
+            },
+            successUpload(value) {
+                $.get("/api/bid/upload/" + value.data).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "导入成功",
+                            type: "success"
+                        });
+                        this.loadTable()
+                    }
+                })
+            },
+
+
+            is_addable(){
+                return this.is_super_admin === 0;
+            },
+            is_editable(bis_status){
+                return this.is_super_admin === 0 && bis_status === "等待选标";
+            },
+            bid_for(){
+                this.bid_for_visible = true;
+                $.ajax({
+                    url:"/api/order/bidable",
+                    type:"GET"
+                }).then(res=>{
+                    this.available_order = res.data;
+                });
+            },
+            save_bid_for(){
+                $.ajax({
+                    url:"/api/factory/bidFactory",
+                    data:"userId="+this.user.id,
+                    type:"GET"
+                }).then(res=>{
+                    this.bid_factory = res.data;
+                    this.entity.factoryid = this.bid_factory.factoryname;
+                });
+                this.bid_for_visible = false;
+                this.save();
+            },
+
+            changeState(obj, state) {  // 审核
+                this.entity = JSON.parse(JSON.stringify(obj));
+                this.entity.state = state;
+                this.save();
+            },
+            handleCollapse() {
+                this.isCollapse = !this.isCollapse;
+            },
+            logout() {
+                $.get("/api/user/logout");
+                sessionStorage.removeItem("user");
+                location.href = "/page/end/login.html";
+            },
+            loadTable() {
+                $.get(urlBase + "/page?pageNum=" + this.pageNum + "&pageSize=" + this.pageSize + "&name=" + this.search+"&userId="+this.user.id).then(res => {
+                    this.tableData = res.data.records;
+                    this.total = res.data.total;
+                })
+
+                 // $.get("/api/").then(res => {
+                    // this.options = res.data;
+                 // })
+            },
+            exp() {   // excel 导出
+                window.open(urlBase + "/export");
+            },
+            handleSizeChange(pageSize) {
+                this.pageSize = pageSize;
+                this.loadTable();
+            },
+            handleCurrentChange(pageNum) {
+                this.pageNum = pageNum;
+                this.loadTable();
+            },
+            add() {
+                this.entity = {};
+                this.fileList = [];
+                this.dialogFormVisible = true;
+            },
+            save() {
+                let type = this.entity.id ? "PUT" : "POST";
+                $.ajax({
+                    url: urlBase,
+                    type: type,
+                    contentType: "application/json",
+                    data: JSON.stringify(this.entity)
+                }).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "保存成功",
+                            type: "success"
+                        });
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                    console.log("i'm now in save()");
+                    console.log(JSON.stringify(this.entity));
+                    this.loadTable();
+                    this.dialogFormVisible = false;
+                })
+            },
+            edit(obj) {
+                this.entity = JSON.parse(JSON.stringify(obj));
+                this.fileList = [];
+                this.dialogFormVisible = true;
+            },
+            del(id) {
+                $.ajax({
+                    url: urlBase + id,
+                    type: "delete"
+                }).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "删除成功",
+                            type: "success"
+                        })
+                        this.loadTable();
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                })
+            }
+        }
+    })
+</script>
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta HTTP-EQUIV="pragma" CONTENT="no-cache">
+    <meta HTTP-EQUIV="Cache-Control" CONTENT="no-cache, must-revalidate">
+    <meta HTTP-EQUIV="expires" CONTENT="0">
+    <title>设备管理</title>
+    <link rel="stylesheet" href="../../css/element.css">
+    <link rel="stylesheet" href="../../css/base.css">
+</head>
+<body>
+<div id="wrapper" v-cloak>
+    <div style="padding-bottom: 10px">
+        <el-breadcrumb separator-class="el-icon-arrow-right">
+            <el-breadcrumb-item @click.native="parent.changeIndex('index')">首页</el-breadcrumb-item>
+            <el-breadcrumb-item>设备管理</el-breadcrumb-item>
+        </el-breadcrumb>
+    </div>
+
+    <div style="height: 1px; margin: 10px 0; background-color: white"></div>
+    <el-input v-model="search" style="width: 20%;" suffix-icon="el-icon-search" placeholder="请输入名称搜索"></el-input>
+    <el-button icon="el-icon-search" round="true" @click="loadTable" type="primary"  style="margin: 10px 0">查询</el-button>
+    <el-button icon="el-icon-plus" round="true" @click="add" type="success" style="margin: 10px 0">新增</el-button>
+    <span v-if="is_scheduleable()">
+        <el-button icon="el-icon-date" round="true" type="primary" @click="schedule_a_device">排产</el-button>
+    </span>
+    <el-table :data="tableData" border stripe style="width: 100%">
+        <el-table-column prop="id" label="ID" width="100"></el-table-column>
+        <el-table-column prop="devicename" label="设备名称"></el-table-column>
+        <el-table-column prop="devicetype" label="设备类型"></el-table-column>
+        <el-table-column prop="norms" label="设备规格"></el-table-column>
+        <el-table-column prop="description" label="设备描述"></el-table-column>
+        <el-table-column prop="devicestatus" label="设备状态">
+            <template slot-scope="scope">
+                <el-tag :type="change_tag(scope.row.devicestatus, 1)">{{scope.row.devicestatus}}</el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column prop="rentstatus" label="租用状态">
+            <template slot-scope="scope">
+                <el-tag :type="get_rent_tag(scope.row.rentstatus)">{{scope.row.rentstatus}}</el-tag>
+            </template>
+        </el-table-column>
+        <el-table-column prop="owner" label="所属工厂"></el-table-column>
+
+        <el-table-column
+                fixed="right"
+                label="操作"
+                width="200">
+            <template slot-scope="scope">
+                <span v-if="is_openable(scope.row.rentstatus)">
+                    <el-button round="true" :type="change_tag(scope.row.devicestatus, 2)" @click="changeState(scope.row)">
+                        <span v-if="scope.row.devicestatus === '工作中'">关机</span>
+                        <span v-if="scope.row.devicestatus === '闲置中'">关机</span>
+                        <span v-if="scope.row.devicestatus === '关机'">开机</span>
+                    </el-button>
+                </span>
+                <span v-if="is_rentable(scope.row.rentstatus)">
+                    <el-button round="true" :type="get_rent_tag(scope.row.rentstatus)" @click="rent_this_device(scope.row)">租用</el-button>
+                </span>
+                <span v-if="is_returnable(scope.row.rentstatus)">
+                    <el-button round="true" :type="get_rent_tag(scope.row.rentstatus)" @click="return_this_device(scope.row)">归还</el-button>
+                </span>
+                <span v-if="is_editable(scope.row.rentstatus)">
+                    <el-button type="primary" icon="el-icon-edit" circle size='mini' @click="edit(scope.row)"></el-button>
+                    <el-popconfirm @onConfirm="del(scope.row.id)" title="确定删除？">
+                        <el-button size='mini' type="danger" icon="el-icon-delete" circle slot="reference" style="margin-left: 10px">
+                        </el-button>
+                    </el-popconfirm>
+                </span>
+
+            </template>
+        </el-table-column>
+    </el-table>
+    <!-- 分页 -->
+    <div style="background-color: white">
+        <el-pagination
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+                :current-page="pageNum"
+                :page-sizes="[5, 10, 20, 40]"
+                :page-size="pageSize"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="total">
+        </el-pagination>
+    </div>
+
+    <el-dialog title="设备信息" :visible.sync="dialogFormVisible" width="40%" :close-on-click-modal="false">
+        <el-form :model="entity">
+            <el-form-item label="设备名称" label-width="120px">
+                <el-input v-model="entity.devicename" autocomplete="off" style="width: 80%"></el-input>
+            </el-form-item>
+            <el-form-item label="设备类型" label-width="120px">
+                <!--                <el-input v-model="entity.devicetype" autocomplete="off" style="width: 80%"></el-input>-->
+                <el-select v-model="entity.devicetype" autocomplete="off" placeholder="请选择" style="width: 80%">
+                    <el-option
+                            v-for="item in device_types"
+                            :key="item.id"
+                            :label="item.typename"
+                            :value="item.typename">
+                        <span style="float: left">{{ item.typename }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="设备规格" label-width="120px">
+                <el-input v-model="entity.norms" autocomplete="off" style="width: 80%"></el-input>
+            </el-form-item>
+            <el-form-item label="设备描述" label-width="120px">
+                <el-input v-model="entity.description" autocomplete="off" style="width: 80%"></el-input>
+            </el-form-item>
+            <el-form-item label="所属工厂" label-width="120px">
+                <el-select v-model="entity.owner" autocomplete="off" placeholder="请选择" style="width: 80%">
+                    <el-option
+                            v-for="item in owner_factories"
+                            :key="item.id"
+                            :label="item.factoryname"
+                            :value="item.factoryname">
+                        <span style="float: left">{{ item.factoryname }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="dialogFormVisible = false">取 消</el-button>
+            <el-button type="primary" @click="save">确 定</el-button>
+        </div>
+    </el-dialog>
+
+    <el-dialog title="排产" :visible.sync="schedule_form_visible" width="40%" :close-on-click-model="false">
+        <el-form :modal="schedule_device">
+            <el-form-item label="设备名称" label-width="120px">
+                <el-select v-model="schedule_device.deviceid" autocomplete="off" placeholder="请选择" style="width: 80%">
+                    <el-option
+                            v-for="item in available_device"
+                            :key="item.id"
+                            :label="item.devicename"
+                            :value="item.devicename">
+                        <span style="float: left">{{ item.devicename }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="排产订单" label-width="120px">
+                <el-select v-model="schedule_device.orderid" autocomplete="off" placeholder="请选择" style="width: 80%">
+                    <el-option
+                            v-for="item in available_order"
+                            :key="item.id"
+                            :label="item.orderno"
+                            :value="item.orderno">
+                        <span style="float: left">{{ item.orderno }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+            <el-form-item label="开始日期" label-width="120px">
+                <el-date-picker style="width: 80%" v-model="schedule_device.begindate" type="date" value-format="yyyy-MM-dd"
+                                placeholder="选择日期"></el-date-picker>
+            </el-form-item>
+            <el-form-item label="截止日期" label-width="120px">
+                <el-date-picker style="width: 80%" v-model="schedule_device.enddate" type="date" value-format="yyyy-MM-dd"
+                                placeholder="选择日期"></el-date-picker>
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="schedule_form_visible = false">取 消</el-button>
+            <el-button type="primary" @click="save_schedule">确 定</el-button>
+        </div>
+    </el-dialog>
+</div>
+
+<script src="../../js/jquery.min.js"></script>
+<script src="../../js/vue.min.js"></script>
+<script src="../../js/element.js"></script>
+<script src="../../js/tinymce/tinymce.min.js"></script>
+
+
+<script>
+
+    let urlBase = "/api/device/";
+    new Vue({
+        el: "#wrapper",
+        data: {
+            options: [],
+            device_types: [],
+            owner_factories: [],
+            available_device: [],
+            available_order: [],
+            is_super_admin: 0,
+            schedule_device: {},
+            fileList: [],
+            user: {},
+            tableData: [],
+            pageNum: 1,
+            pageSize: 10,
+            total: 0,
+            dialogFormVisible: false,
+            schedule_form_visible:false,
+            entity: {},
+            isCollapse: false,
+            search: '',
+        },
+        created() {
+            this.user = sessionStorage.getItem("user") ? JSON.parse(sessionStorage.getItem("user")) : {};
+            this.loadTable();
+            let role = this.user.role;
+            let flag = false;
+            for(let i = 0; i<role.length;i++){
+                if(role[i] === 1){
+                    flag = true;
+                    break;
+                }
+            }
+            this.is_super_admin = flag ? 1 : 0;
+        },
+        methods: {
+            fileSuccessUpload(res) {
+                this.entity.file = "http://localhost:9999/files/" + res.data;
+                this.entity.img = "http://localhost:9999/files/" + res.data;
+                //console.log(res)
+            },
+            successUpload(value) {
+                $.get("/api/device/upload/" + value.data).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "导入成功",
+                            type: "success"
+                        });
+                        this.loadTable()
+                    }
+                })
+            },
+            is_editable(rent_status){
+                if(this.is_super_admin === 1){
+                    // 如果是超级管理员
+                    return rent_status !== "工厂设备";
+                } else {
+                    // 云工厂管理员
+                    return rent_status === "工厂设备";
+                }
+            },
+            is_openable(rent_status){
+                // 对工厂管理员,只有租到设备或自己的设备,可以开关机
+                if(this.is_super_admin === 0){
+                    return rent_status !== "未租用";
+                } else
+                    return true;
+                //return !(this.is_super_admin === 0 && rent_status === "未租用");
+            },
+            is_rentable(rent_status){
+                if(this.is_super_admin === 1)
+                    return false;
+                return rent_status === "未租用";
+            },
+            is_returnable(rent_status){
+                if(this.is_super_admin === 1)
+                    return false;
+                return rent_status === "已租用";
+            },
+            is_scheduleable(){
+                return this.is_super_admin === 0;
+            },
+            change_tag(ele, i) {
+                // 改设备状态tag
+                if (i === 1) {
+                    if (ele === "闲置中")
+                        return "warning";
+                    else if (ele === "工作中")
+                        return "success";
+                    else
+                        return "";
+                } else {
+                    if (ele === "闲置中" || ele === "工作中")
+                        return "danger";
+                    else
+                        return "success";
+                }
+            },
+            get_rent_tag(ele) {
+                return ele === "未租用" ? "success" : "warning";
+            },
+            rent_this_device(obj){
+                this.entity = JSON.parse(JSON.stringify(obj));
+                if(this.entity.rentstatus === "未租用")
+                    this.entity.rentstatus = "已租用";
+                this.save();
+            },
+            return_this_device(obj){
+                this.entity = JSON.parse(JSON.stringify(obj));
+                if(this.entity.rentstatus === "已租用")
+                    this.entity.rentstatus = "未租用";
+                this.save();
+            },
+            changeState(obj) {  // 审核
+                this.entity = JSON.parse(JSON.stringify(obj));
+                if (this.entity.devicestatus === "工作中" || this.entity.devicestatus === "闲置中")
+                    this.entity.devicestatus = "关机";
+                else
+                    this.entity.devicestatus = "闲置中";
+                this.save();
+            },
+            schedule_a_device(){
+                $.ajax({
+                    url:"/api/device/available",
+                    data:"userId="+this.user.id,
+                    type:"GET"
+                }).then(res=>{
+                    console.log("available_devices are: "+res.data);
+                    this.available_device = res.data;
+                });
+                $.ajax({
+                    url:"/api/order/available",
+                    data:"userId="+this.user.id,
+                    type:"GET"
+                }).then(res=>{
+                    console.log("available_orders are: "+res.data);
+                    this.available_order = res.data;
+                });
+                this.schedule_device = {};
+                this.schedule_form_visible = true;
+            },
+            save_schedule(){
+                $.ajax({
+                    url:"/api/scheduling",
+                    type:"POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(this.schedule_device)
+                }).then(res=>{
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "保存成功",
+                            type: "success"
+                        });
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                    this.loadTable();
+                    this.schedule_form_visible = false;
+                })
+            },
+            handleCollapse() {
+                this.isCollapse = !this.isCollapse;
+            },
+            logout() {
+                $.get("/api/user/logout");
+                sessionStorage.removeItem("user");
+                location.href = "/page/end/login.html";
+            },
+            loadTable() {
+                $.get(urlBase + "/page?pageNum=" + this.pageNum + "&pageSize=" + this.pageSize +"&name="+this.search+ "&owner=" + this.user.id).then(res => {
+                    this.tableData = res.data.records;
+                    this.total = res.data.total;
+                });
+                $.ajax({
+                    url: "/api/deviceType",
+                    type: "GET",
+                }).then(res => {
+                    this.device_types = res.data;
+                });
+                $.ajax({
+                    url: "/api/factory",
+                    type: "GET",
+                }).then(res => {
+                    this.owner_factories = res.data;
+                });
+            },
+            exp() {   // excel 导出
+                window.open(urlBase + "/export");
+            },
+            handleSizeChange(pageSize) {
+                this.pageSize = pageSize;
+                this.loadTable();
+            },
+            handleCurrentChange(pageNum) {
+                this.pageNum = pageNum;
+                this.loadTable();
+            },
+            add() {
+                this.entity = {};
+                this.fileList = [];
+                this.dialogFormVisible = true;
+            },
+            save() {
+                let type = this.entity.id ? "PUT" : "POST";
+                $.ajax({
+                    url: urlBase,
+                    type: type,
+                    contentType: "application/json",
+                    data: JSON.stringify(this.entity)
+                }).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "保存成功",
+                            type: "success"
+                        });
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                    this.loadTable();
+                    this.dialogFormVisible = false;
+                })
+            },
+            edit(obj) {
+                this.entity = JSON.parse(JSON.stringify(obj));
+                this.fileList = [];
+                this.dialogFormVisible = true;
+            },
+            del(id) {
+                $.ajax({
+                    url: urlBase + id,
+                    type: "delete"
+                }).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "删除成功",
+                            type: "success"
+                        })
+                        this.loadTable();
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                })
+            }
+        }
+    })
+</script>
+</body>
+</html>

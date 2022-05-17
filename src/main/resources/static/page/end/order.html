@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta HTTP-EQUIV="pragma" CONTENT="no-cache">
+    <meta HTTP-EQUIV="Cache-Control" CONTENT="no-cache, must-revalidate">
+    <meta HTTP-EQUIV="expires" CONTENT="0">
+    <title>订单管理</title>
+    <link rel="stylesheet" href="../../css/element.css">
+    <link rel="stylesheet" href="../../css/base.css">
+</head>
+<body>
+<div id="wrapper" v-cloak>
+    <div style="padding-bottom: 10px">
+        <el-breadcrumb separator-class="el-icon-arrow-right">
+            <el-breadcrumb-item @click.native="parent.changeIndex('index')">首页</el-breadcrumb-item>
+            <el-breadcrumb-item>订单管理</el-breadcrumb-item>
+        </el-breadcrumb>
+    </div>
+
+    <div style="height: 1px; margin: 10px 0; background-color: white"></div>
+    <el-input v-model="search" style="width: 20%;" suffix-icon="el-icon-search" placeholder="请输入ID搜索"></el-input>
+    <el-button icon="el-icon-search" round="true" @click="loadTable" type="primary" style="margin: 10px 0">查询
+    </el-button>
+    <span v-if="is_creatable()">
+        <el-button icon="el-icon-plus" round="true" @click="add" type="primary" style="margin: 10px 0">新增</el-button>
+    </span>
+    <el-table :data="tableData" border stripe style="width: 100%">
+        <el-table-column prop="id" label="ID" width="40"></el-table-column>
+        <el-table-column prop="address" label="地址"></el-table-column>
+        <el-table-column prop="contact" label="联系方式"></el-table-column>
+        <el-table-column prop="deaddate" label="截止日期"></el-table-column>
+        <el-table-column prop="deliverdate" label="交付日期"></el-table-column>
+        <el-table-column prop="factoryid" label="承接工厂"></el-table-column>
+        <el-table-column prop="orderno" label="订单编号"></el-table-column>
+        <el-table-column prop="ordernum" label="订购数量"></el-table-column>
+        <el-table-column prop="orderstatus" label="订单状态"></el-table-column>
+        <el-table-column prop="productid" label="产品名称"></el-table-column>
+        <el-table-column prop="receipt" label="金额"></el-table-column>
+        <el-table-column prop="userid" label="用户ID"></el-table-column>
+
+        <span v-if="is_creatable()">
+        <el-table-column fixed="right" label="操作" width="200">
+            <template slot-scope="scope">
+                <span v-if="is_confirmable(scope.row.orderstatus)">
+                    <el-button type="success" icon="el-icon-check" round="true" @click="changeState(scope.row, '已收货')">确认收货</el-button>
+                </span>
+                <span v-if="is_chooseable(scope.row.orderstatus)">
+                    <el-button type="success" icon="el-icon-thumb" round="true" @click="choose_bid(scope.row)">选标</el-button>
+                </span>
+                <span v-if="is_editable(scope.row.orderstatus)">
+                    <el-button type="primary" icon="el-icon-edit" circle size='mini'
+                                   @click="edit(scope.row)"></el-button>
+                </span>
+                <span v-if="is_deletable(scope.row.orderstatus)">
+                    <el-popconfirm @onConfirm="del(scope.row.id)" title="确定删除？">
+                    <el-button size='mini' type="danger" icon="el-icon-delete" circle slot="reference"
+                               style="margin-left: 10px"></el-button>
+                    </el-popconfirm>
+                </span>
+            </template>
+        </el-table-column>
+        </span>
+
+    </el-table>
+    <!-- 分页 -->
+    <div style="background-color: white">
+        <el-pagination
+                @size-change="handleSizeChange"
+                @current-change="handleCurrentChange"
+                :current-page="pageNum"
+                :page-sizes="[5, 10, 20, 40]"
+                :page-size="pageSize"
+                layout="total, sizes, prev, pager, next, jumper"
+                :total="total">
+        </el-pagination>
+    </div>
+
+    <el-dialog title="订单信息" :visible.sync="dialogFormVisible" width="40%"
+               :close-on-click-modal="false">
+        <el-form :model="entity">
+            <el-form-item label="地址" label-width="120px">
+                <el-input v-model="entity.address" autocomplete="off" style="width: 80%"></el-input>
+            </el-form-item>
+            <el-form-item label="联系方式" label-width="120px">
+                <el-input
+                        v-model='entity.contact'
+                        oninput="value=value.replace(/[^\d]/g,'')"
+                        maxLength='11'>
+                </el-input>
+            </el-form-item>
+            <el-form-item label="截止日期" label-width="120px">
+                <el-date-picker style="width: 80%" v-model="entity.deaddate" type="date" value-format="yyyy-MM-dd"
+                                placeholder="选择日期"></el-date-picker>
+            </el-form-item>
+            <el-form-item label="交付日期" label-width="120px">
+                <el-date-picker style="width: 80%" v-model="entity.deliverdate" type="date" value-format="yyyy-MM-dd"
+                                placeholder="选择日期"></el-date-picker>
+            </el-form-item>
+            <el-form-item label="订购数量" label-width="120px">
+                <el-input
+                        v-model='entity.ordernum'
+                        oninput="value=value.replace(/[^\d]/g,'')"
+                        maxLength='15'>
+                    <template slot="append">个</template>
+                </el-input>
+            </el-form-item>
+            <el-form-item label="产品名称" label-width="120px">
+                <el-select v-model="entity.productid" autocomplete="off" placeholder="请选择" style="width: 80%">
+                    <el-option
+                            v-for="item in product_list"
+                            :key="item.id"
+                            :label="item.productname"
+                            :value="item.productname">
+                        <span style="float: left">{{ item.productname }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="dialogFormVisible = false">取 消</el-button>
+            <el-button type="primary" @click="save">确 定</el-button>
+        </div>
+    </el-dialog>
+
+    <el-dialog title="选标" :visible.sync="choose_bid_form_visible" width="40%" :close-on-click-modal="false">
+        <el-form :model="choose_bid_obj">
+            <el-form-item label="投标工厂" label-width="120px">
+                <el-select v-model="choose_bid_obj.factoryid" autocomplete="off" placeholder="请选择" style="width: 80%">
+                    <el-option
+                            v-for="item in bid_list"
+                            :key="item.id"
+                            :label="item.factoryid"
+                            :value="item.factoryid">
+                        <span style="float: left">{{ item.factoryid }}</span>
+                    </el-option>
+                </el-select>
+            </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+            <el-button @click="choose_bid_form_visible = false">取 消</el-button>
+            <el-button type="primary" @click="save_choose_bid">确 定</el-button>
+        </div>
+    </el-dialog>
+</div>
+
+<script src="../../js/jquery.min.js"></script>
+<script src="../../js/vue.min.js"></script>
+<script src="../../js/element.js"></script>
+<script src="../../js/tinymce/tinymce.min.js"></script>
+
+
+<script>
+
+    let urlBase = "/api/order/";
+    new Vue({
+        el: "#wrapper",
+        data: {
+            options: [],
+            product_list: [],
+            bid_list:[],
+            is_super_admin: 0,
+            fileList: [],
+            user: {},
+            choose_bid_obj:{},
+            tableData: [],
+            pageNum: 1,
+            pageSize: 10,
+            total: 0,
+            dialogFormVisible: false,
+            choose_bid_form_visible:false,
+            entity: {},
+            isCollapse: false,
+            search: '',
+        },
+        created() {
+            this.user = sessionStorage.getItem("user") ? JSON.parse(sessionStorage.getItem("user")) : {};
+            this.loadTable();
+            let role = this.user.role;
+            let flag = false;
+            for (let i = 0; i < role.length; i++) {
+                if (role[i] === 1) {
+                    flag = true;
+                    break;
+                }
+            }
+            this.is_super_admin = flag ? 1 : 0;
+        },
+        methods: {
+            fileSuccessUpload(res) {
+                this.entity.file = "http://localhost:9999/files/" + res.data;
+                this.entity.img = "http://localhost:9999/files/" + res.data;
+                console.log(res)
+            },
+            successUpload(value) {
+                $.get("/api/order/upload/" + value.data).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "导入成功",
+                            type: "success"
+                        });
+                        this.loadTable()
+                    }
+                })
+            },
+            changeState(obj, state) {
+                this.entity = JSON.parse(JSON.stringify(obj));
+                this.entity.orderstatus = state;
+                this.save();
+            },
+            is_confirmable(order_status){
+                return order_status === "排产完成";
+            },
+            is_creatable() {
+                return this.is_super_admin === 0;
+            },
+            is_editable(order_status) {
+                return order_status !== "已收货";
+            },
+            is_deletable(order_status){
+                return order_status === "未安排" || order_status === "已收货";
+            },
+            is_chooseable(order_status){
+                return order_status === "未安排";
+            },
+            handleCollapse() {
+                this.isCollapse = !this.isCollapse;
+            },
+            choose_bid(obj){
+                this.choose_bid_obj = JSON.parse(JSON.stringify(obj));
+                this.choose_bid_form_visible = true;
+                $.ajax({
+                    url:"/api/bid/available",
+                    data:"orderNo="+this.choose_bid_obj.orderno,
+                    type:"GET",
+                }).then(res=>{
+                    this.bid_list = res.data;
+                })
+            },
+            save_choose_bid(){
+                $.ajax({
+                    url:"/api/bid/chooseBid",
+                    type:"PUT",
+                    data:"orderNo="+this.choose_bid_obj.orderno+"&factoryName="+this.choose_bid_obj.factoryid
+                }).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "保存成功",
+                            type: "success"
+                        });
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                    this.loadTable();
+                    this.choose_bid_form_visible = false;
+                })
+            },
+            logout() {
+                $.get("/api/user/logout");
+                sessionStorage.removeItem("user");
+                location.href = "/page/end/login.html";
+            },
+            loadTable() {
+                $.get(urlBase + "/page?pageNum=" + this.pageNum + "&pageSize=" + this.pageSize + "&name=" + this.search + "&dealerId=" + this.user.id).then(res => {
+                    this.tableData = res.data.records;
+                    this.total = res.data.total;
+                });
+
+                $.ajax({
+                    url: "/api/product",
+                    type: "GET"
+                }).then(res => {
+                    this.product_list = res.data;
+                })
+            },
+            exp() {   // excel 导出
+                window.open(urlBase + "/export");
+            },
+            handleSizeChange(pageSize) {
+                this.pageSize = pageSize;
+                this.loadTable();
+            },
+            handleCurrentChange(pageNum) {
+                this.pageNum = pageNum;
+                this.loadTable();
+            },
+            add() {
+                this.entity = {};
+                this.fileList = [];
+                this.dialogFormVisible = true;
+            },
+            save() {
+                this.entity.userid = this.user.id;
+                console.log(this.entity);
+                let type = this.entity.id ? "PUT" : "POST";
+                $.ajax({
+                    url: urlBase,
+                    type: type,
+                    contentType: "application/json",
+                    data: JSON.stringify(this.entity)
+                }).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "保存成功",
+                            type: "success"
+                        });
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                    this.loadTable();
+                    this.dialogFormVisible = false;
+                })
+            },
+            edit(obj) {
+                this.entity = JSON.parse(JSON.stringify(obj));
+                this.fileList = [];
+                this.dialogFormVisible = true;
+            },
+            del(id) {
+                $.ajax({
+                    url: urlBase + id,
+                    type: "delete"
+                }).then(res => {
+                    if (res.code === '0') {
+                        this.$message({
+                            message: "删除成功",
+                            type: "success"
+                        })
+                        this.loadTable();
+                    } else {
+                        this.$message({
+                            message: res.msg,
+                            type: "error"
+                        })
+                    }
+                })
+            }
+        }
+    })
+</script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta HTTP-EQUIV="pragma" CONTENT="no-cache">
+    <meta HTTP-EQUIV="Cache-Control" CONTENT="no-cache, must-revalidate">
+    <meta HTTP-EQUIV="expires" CONTENT="0">
+    <title>注册</title>
+    <link rel="stylesheet" href="../../css/base.css">
+    <link rel="stylesheet" href="../../css/element.css">
+    <script src="../../js/funny_thing.js"></script>
+</head>
+
+<body>
+<script>
+    init_background();
+</script>
+<div id="wrapper">
+
+    <el-form ref="form" :rules="formRules" :model="user" class="loginContainer">
+        <h3 class="loginTitle">系统注册</h3>
+        <el-form-item prop="username" label-width="80px" label="登录账号">
+            <el-input type="text" v-model="user.username" placeholder="请输入用户名" style="width: 270px"></el-input>
+        </el-form-item>
+        <el-form-item prop="password" label-width="80px" label="登录密码">
+            <el-input type="password" v-model.number="user.password" placeholder="请输入密码"
+                      style="width: 270px"></el-input>
+        </el-form-item>
+        <el-form-item prop="email" label="邮箱账号" label-width="80px">
+            <el-input type="text" v-model="user.email" placeholder="请输入邮箱"
+                      style="width: 270px"></el-input>
+        </el-form-item>
+        <el-form-item prop="phone" label="联系方式" label-width="80px">
+            <el-input type="text" v-model="user.phone" placeholder="请输入联系方式"
+                      style="width: 270px"></el-input>
+        </el-form-item>
+        <el-form-item label="角色" label-width="80px">
+            <el-select v-model="user.role" placeholder="请选择角色" style="width: 270px">
+                <el-option v-for="item in roles" :key="item.roleId" :label="item.roleName"
+                           :value="item.value"></el-option>
+            </el-select>
+        </el-form-item>
+        <el-form-item v-if="user.role=='[2,3]'" label="工厂名称" label-width="80px">
+            <el-input v-model="factory.name" placeholder="请输入工厂名称" style="width: 270px"></el-input>
+        </el-form-item>
+        <el-form-item v-if="user.role=='[2,3]'" label="工厂描述" label-width="80px">
+            <el-input v-model="factory.description" placeholder="请对工厂进行描述" style="width: 270px"></el-input>
+        </el-form-item>
+
+        <el-button type="primary" style="width: 100%" @click="register">注册</el-button>
+    </el-form>
+</div>
+
+<script src="../../js/jquery.min.js"></script>
+<script src="../../js/vue.min.js"></script>
+<script src="../../js/element.js"></script>
+
+<script>
+
+    var wrapper = new Vue({
+        el: "#wrapper",
+
+        data() {
+            let validTelNumber = function (rule, value, callback) {
+                if (value) {
+                    let isPhone = /^[0-9-]{1,20}$/
+                    if (!isPhone.test(value)) {
+                        callback(new Error("请输入长度在20位以内的有效字符，包含数字或'-'"))
+                    }
+                }
+                callback()
+            };
+            let validEmail = function (rule, value, callback) {
+                if (value) {
+                    let isEmail = /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/
+                    if (!isEmail.test(value)) {
+                        callback(new Error("请输入有效的邮箱"))
+                    }
+                }
+                callback()
+            };
+            return {
+                user: {},
+                role: '',
+                factory: {},
+                formRules: {
+                    username: [
+                        {required: true, message: "请输入用户名", trigger: "blur"}
+                    ],
+                    password: [
+                        {required: true, message: "请输入密码", trigger: "blur"},
+                        {min: 6, max: 12, message: "长度在 6 到 12 个字符", trigger: "blur"}
+                    ],
+                    phone: [
+                        {required: true, message: "请输入联系方式", trigger: "blur"},
+                        {validator: validTelNumber, trigger: "blur"}
+                    ],
+                    email: [
+                        {required: true, message: "请输入邮箱", trigger: "blur"},
+                        {validator: validEmail, trigger: "blur"}
+                    ],
+
+                },
+                currentRole: "",
+                roles: [
+                    {
+                        roleId: "2",
+                        roleName: "经销商",
+                        value: "[2,4]"
+                    },
+                    {
+                        roleId: "1",
+                        roleName: "云工厂",
+                        value: "[2,3]"
+                    }
+                ],
+            }
+        },
+        methods: {
+            register() {
+                let regCode = /^[a-zA-z0-9]{5,15}$/;
+                let regEmail = /^([a-zA-Z]|[0-9])(\w|-)+@[a-zA-Z0-9]+\.([a-zA-Z]{2,4})$/;
+
+                if (!this.user.username) {
+                    this.$message({
+                        message: "请输入用户名",
+                        type: "error"
+                    });
+                    return;
+                }
+                if (!this.user.password) {
+                    this.$message({
+                        message: "请输入密码",
+                        type: "error"
+                    });
+                    return;
+                }
+                if (!regCode.test(this.user.username)) {
+                    this.$message({
+                        message: "账号只能输入大小写字母,数字!长度在5到15位之间!",
+                        type: "error"
+                    });
+                    return;
+                }
+                if (!regCode.test(this.user.password)) {
+                    this.$message({
+                        message: "密码只能输入大小写字母,数字!长度在5到15位之间!",
+                        type: "error"
+                    });
+                    return;
+                }
+
+                if (!regEmail.test(this.user.email)) {
+                    this.$message({
+                        message: "邮箱格式不正确!",
+                        type: "error"
+                    });
+                    return;
+                }
+                let temp = JSON.stringify(this.user) + "%" + JSON.stringify(this.factory);
+                $.ajax({
+                    url: "/api/user/register",
+                    type: "POST",
+                    contentType: "application/json",
+                    data: temp,
+                    success: function (result) {
+                        console.log(JSON.stringify(this.user));
+                        console.log(JSON.stringify(temp));
+                    }
+                })
+                    .then(res => {
+                        if (res.code === '0') {
+                            this.$message({
+                                message: "注册成功",
+                                type: "success"
+                            });
+                            sessionStorage.setItem("user", JSON.stringify(res.data));
+                            setTimeout(() => {
+                                location.href = "/page/end/login.html"
+                            }, 1000)
+                        } else {
+                            this.$message({
+                                message: res.msg,
+                                type: "error"
+                            })
+                        }
+                    })
+            }
+        }
+    })
+</script>
+<style>
+    .loginContainer {
+        border-radius: 15px;
+        background-clip: padding-box;
+        margin: 100px auto;
+        width: 450px;
+        padding: 15px 35px 15px 35px;
+        background: #fff;
+        border: 1px solid #eaeaea;
+        box-shadow: 0 0 25px #cac6c6;
+    }
+
+    .loginTitle {
+        margin: 0 auto 40px auto;
+        text-align: center;
+    }
+
+    .rememberMe {
+        text-align: left;
+        margin: 0 0 15px 0;
+    }
+
+    .el-form-item {
+        margin-left: 0;
+    }
+
+</style>
+</body>
+</html>

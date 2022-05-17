@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta HTTP-EQUIV="pragma" CONTENT="no-cache">
+    <meta HTTP-EQUIV="Cache-Control" CONTENT="no-cache, must-revalidate">
+    <meta HTTP-EQUIV="expires" CONTENT="0">
+    <title>后台管理</title>
+    <link rel="stylesheet" href="../../css/element.css">
+    <link rel="stylesheet" href="../../css/base.css">
+    <script src="../../js/funny_thing.js"></script>
+    <style>
+
+    </style>
+
+</head>
+<body>
+<script>
+    init_background();
+</script>
+<div id="wrapper" v-cloak>
+    <el-container>
+        <el-header>
+            <el-row :gutter="30">
+                <el-col :span="22">
+                    <el-menu :default-active="src" class="el-menu-demo" mode="horizontal" @select="handleSelect"
+                             background-color="#7788A3FF" text-color="#fff" active-text-color="#ffd04b"
+                             style="overflow: hidden">
+                        <el-menu-item :index="item.path" v-for="item in user.permission">
+                            <i :class=`el-icon-${item.icon}`></i>
+                            <span slot="title">{{item.name}}</span>
+                        </el-menu-item>
+                    </el-menu>
+                </el-col>
+                <el-col :span="2">
+
+                    <el-dropdown align="right" style="margin-top: 10px">
+                        <img :src=`/files/${user.avatar}`
+                             style="width: 40px; height: 40px; margin-right: 10px; border-radius: 50%" alt="">
+                        <el-dropdown-menu slot="dropdown" style="color: black; cursor: pointer; text-align: center;">
+                        <span @click="handleSelect('person')"
+                              style="display:inline-block; padding: 10px 0; width: 100px; ">个人信息</span>
+                            <span @click="logout" style="display:block; width: 100px;  ">退出</span>
+                        </el-dropdown-menu>
+                    </el-dropdown>
+                </el-col>
+            </el-row>
+        </el-header>
+        <el-container>
+            <el-main>
+                <iframe id="myiframe" :src="src + '.html?new=' + Math.random()" frameborder="0" scrolling="no"
+                        style="width: 100%"></iframe>
+            </el-main>
+        </el-container>
+    </el-container>
+</div>
+
+<script src="../../js/jquery.min.js"></script>
+<script src="../../js/vue.min.js"></script>
+<script src="../../js/element.js"></script>
+
+
+<script>
+    function call() {
+        vm.user = JSON.parse(sessionStorage.getItem("user"))
+    }
+
+    function changeIndex(index) {
+        vm.src = index
+        location.search = "target=" + index
+        window.setInterval("reinitIframe()", 50);
+    }
+
+    // 实现 iframe  高度自适应
+    function reinitIframe() {
+        const iframe = document.getElementById("myiframe");
+        try {
+            const bHeight = iframe.contentWindow.document.body.scrollHeight;
+            const dHeight = iframe.contentWindow.document.documentElement.scrollHeight;
+            iframe.height = Math.max(bHeight, dHeight, (window.innerHeight - 105));
+        } catch (ex) {
+        }
+    }
+
+    window.setInterval("reinitIframe()", 50);
+
+    let vm = new Vue({
+        el: "#wrapper",
+        data: {
+            src: 'index',
+            active: 0,
+            user: {},
+            isCollapse: false,
+        },
+        created() {
+            this.user = sessionStorage.getItem("user") ? JSON.parse(sessionStorage.getItem("user")) : {};
+            if (location.search) {
+                this.src = getUrlParamValue('target')
+            }
+        },
+        methods: {
+            handleSelect(key) {
+                this.src = key
+                location.search = "target=" + this.src
+                window.setInterval("reinitIframe()", 50);
+            },
+            handleCollapse() {
+                this.isCollapse = !this.isCollapse;
+            },
+            logout() {
+                $.get("/api/user/logout");
+                sessionStorage.removeItem("user");
+                location.href = "/page/end/login.html";
+            }
+        }
+    })
+
+    /**
+     * 获取url参数
+     * @param name
+     * @returns {string|null}
+     */
+    function getUrlParamValue(name) {
+        if (name == null || name === 'undefined') {
+            return '';
+        }
+        let searchStr = decodeURI(location.search);
+        let infoIndex = searchStr.indexOf(name + "=");
+        if (infoIndex === -1) {
+            return null;
+        }
+        let searchInfo = searchStr.substring(infoIndex + name.length + 1);
+        let tagIndex = searchInfo.indexOf("&");
+        if (tagIndex !== -1) {
+            searchInfo = searchInfo.substring(0, tagIndex);
+        }
+        return searchInfo;
+    }
+</script>
+
+</body>
+</html>
